@@ -68,6 +68,7 @@ function availNotes(keyCount) {
 }
 function noteHTML(v) {
   if (v === '-') return '-';
+  if (v === '~') return '';        // 칸만 합치고 글자는 없음
   if (!v) return '';
   const p = parseNote(v);
   if (!p) return esc(v);
@@ -78,14 +79,17 @@ function esc(s) {
 }
 
 /* ══════════ 배치 계산 ══════════ */
+// '-' 는 하이픈이 보이는 이음, '~' 는 아무것도 안 보이는 이음
+function isJoin(v) { return v === '-' || v === '~'; }
+
 function mergeCells(cells) {
   const out = [];
   let i = 0;
   while (i < cells.length) {
     const parts = [cells[i]];
     let j = i + 1;
-    if (cells[i] !== '-') {
-      while (j < cells.length && cells[j] === '-') { parts.push('-'); j++; }
+    if (!isJoin(cells[i])) {
+      while (j < cells.length && isJoin(cells[j])) { parts.push(cells[j]); j++; }
     }
     out.push({ parts, span: parts.length });
     i = j;
@@ -297,9 +301,10 @@ function renderRows() {
       </div>
       <div class="cells" style="grid-template-columns:repeat(${cur.cols},1fr)">
         ${r.cells.map((c, ci) => {
-          const cls = c === '-' ? 'dash' : (c === '' ? 'empty' : '');
+          const cls = isJoin(c) ? 'dash' : (c === '' ? 'empty' : '');
           const on = (sel.row === ri && sel.cell === ci) ? ' sel' : '';
-          return `<div class="cell ${cls}${on}" data-ri="${ri}" data-ci="${ci}">${c === '' ? '·' : noteHTML(c)}</div>`;
+          const face = c === '' ? '·' : (c === '~' ? '⇤' : noteHTML(c));
+          return `<div class="cell ${cls}${on}" data-ri="${ri}" data-ci="${ci}">${face}</div>`;
         }).join('')}
       </div>
     </div>`).join('');
@@ -529,7 +534,7 @@ function buildPdf(song) {
         const x = left + ci * cw, w = cw * u.span;
         doc.rect(x, y, w, LAY.rowH);
         u.parts.forEach((p, k) => {
-          if (p === '') return;
+          if (p === '' || p === '~') return;
           drawNote(doc, p, x + cw * (k + 0.5), y + LAY.rowH / 2, cf);
         });
         ci += u.span;
