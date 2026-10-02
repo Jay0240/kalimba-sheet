@@ -240,6 +240,7 @@ function showEdit(song, startStep) {
   $('#view-list').classList.add('hidden');
   $('#view-edit').classList.remove('hidden');
   $('#song-title').value = song.title;
+  $('#now-title').textContent = song.title || '제목 없음';
   $('#opt-keys').checked = song.showKeys;
   $('#opt-hands').checked = song.showHands;
   renderIconPick();
@@ -558,7 +559,7 @@ function renderPreview() {
 
   // 제목 (테두리 없이 글자만)
   const t = $('#p-title');
-  t.style.display = L.title ? 'block' : 'none';
+  t.style.display = L.title ? 'flex' : 'none';   // block 으로 바꾸면 가운데 정렬이 깨진다
   t.style.top = L.titleTop + 'mm';
   t.style.height = L.titleH + 'mm';
   t.style.fontSize = L.titleFs + 'mm';
