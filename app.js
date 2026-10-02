@@ -14,7 +14,8 @@ const LAY = {
   sheetW: 174.4, rowH: 21.6, groupGap: 7, cellFont: 9,
   barsGapBelow: 13.3, sheetTopNoBars: 40,
   sheetGapBelow: 12,
-  handsW: 150, handW: 14, handH: 22, handRowGap: 6, handsPerRow: 8,
+  handsW: 150, handW: 14, handRowGap: 6, handGapMin: 1.5,
+  safeBottom: 10,          // 종이 아래 최소 여백
   line: 0.5
 };
 
@@ -44,9 +45,9 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 function newSong() {
   return {
     id: uid(), title: '', updatedAt: Date.now(),
-    showKeys: true, keyCount: 17, keyScale: 1, cols: 8,
+    showKeys: true, keyCount: 10, keyScale: 1, cols: 8,
     rows: Array.from({ length: 4 }, () => ({ cells: Array(8).fill(''), gapAfter: false })),
-    showHands: true, handCount: 16
+    showHands: true, handCount: 16, handIcon: 'victory', handScale: 1
   };
 }
 
@@ -58,17 +59,24 @@ function parseNote(v) {
   return m ? { num: m[1], up: m[2].length } : null;
 }
 function noteLabel(n, up) { return String(n) + "'".repeat(up); }
+// 건반 수별로 올라가는 음역 (C 튜닝 기준)
+const KEY_TYPES = [
+  { n: 10, up1: 3 },     // 1~7 + 높음· 1~3
+  { n: 13, up1: 6 }      // 1~7 + 높음· 1~6
+];
+function keyTypeOf(keyCount) {
+  return KEY_TYPES.find(k => k.n === keyCount) || KEY_TYPES[0];
+}
 function availNotes(keyCount) {
-  const all = [1, 2, 3, 4, 5, 6, 7];
-  return [
-    { up: 0, nums: all },
-    { up: 1, nums: all },
-    { up: 2, nums: keyCount >= 21 ? all : [1, 2, 3] }
-  ];
+  const t = keyTypeOf(keyCount);
+  const seq = n => Array.from({ length: n }, (_, i) => i + 1);
+  const rows = [{ up: 0, nums: seq(7) }];
+  if (t.up1) rows.push({ up: 1, nums: seq(t.up1) });
+  if (t.up2) rows.push({ up: 2, nums: seq(t.up2) });
+  return rows;
 }
 function noteHTML(v) {
   if (v === '-') return '-';
-  if (v === '~') return '';        // 칸만 합치고 글자는 없음
   if (!v) return '';
   const p = parseNote(v);
   if (!p) return esc(v);
@@ -79,8 +87,8 @@ function esc(s) {
 }
 
 /* ══════════ 배치 계산 ══════════ */
-// '-' 는 하이픈이 보이는 이음, '~' 는 아무것도 안 보이는 이음
-function isJoin(v) { return v === '-' || v === '~'; }
+// '-' 는 앞 칸에 이어 붙는다 (음을 길게)
+function isJoin(v) { return v === '-'; }
 
 function mergeCells(cells) {
   const out = [];
@@ -112,11 +120,13 @@ function layout(song) {
     sheetH += g.length * LAY.rowH;
     if (i < groups.length - 1) sheetH += LAY.groupGap;
   });
+  const hb = handBox(song);
   const handRows = song.showHands && song.handCount > 0
-    ? Math.ceil(song.handCount / LAY.handsPerRow) : 0;
-  const handsTop = sheetTop + sheetH + LAY.sheetGapBelow;
-  const handsH = handRows ? handRows * LAY.handH + (handRows - 1) * LAY.handRowGap : 0;
-  return { groups, sheetTop, sheetH, handsTop, handRows, handsH, bottom: handsTop + handsH };
+    ? Math.ceil(song.handCount / hb.perRow) : 0;
+  const handsTop = sheetTop + sheetH + (handRows ? LAY.sheetGapBelow : 0);
+  const handsH = handRows ? handRows * hb.h + (handRows - 1) * LAY.handRowGap : 0;
+  return { groups, sheetTop, sheetH, handsTop, handRows, handsH, hb,
+           bottom: handsTop + handsH };
 }
 function cellFont(cols) {
   return +Math.min(LAY.cellFont, (LAY.sheetW / cols) * 0.52).toFixed(2);
@@ -128,10 +138,46 @@ function barHeights(n) {
     return +(LAY.barsMax - (LAY.barsMax - LAY.barsMin) * r).toFixed(2);
   });
 }
-function barWidth(n) { return n >= 21 ? 4.5 : 5.5; }
+function barWidth(n) { return +(LAY.barsW / n * 0.62).toFixed(2); }
+function icons() { return window.HAND_ICONS || []; }
+function iconOf(song) {
+  const list = icons();
+  return list.find(i => i.key === song.handIcon) || list[0] || { png: '', ratio: 1.57 };
+}
+function handScale(song) {
+  const v = song.handScale;
+  return (typeof v === 'number' && v > 0) ? v : 1;
+}
+// 손 그림 한 칸 크기와 한 줄 개수 — 폭 150mm 안에 들어가게 계산
+function handBox(song) {
+  const w = LAY.handW * handScale(song);
+  const h = w * iconOf(song).ratio;
+  const perRow = Math.max(1, Math.floor((LAY.handsW + LAY.handGapMin) / (w + LAY.handGapMin)));
+  const gap = perRow > 1 ? (LAY.handsW - perRow * w) / (perRow - 1) : 0;
+  return { w, h, perRow, gap };
+}
+
 function keyScale(song) {
   const v = song.keyScale;
   return (typeof v === 'number' && v > 0) ? v : 1;   // 예전에 만든 곡 대비
+}
+
+/* ══════════ A4 한 장 제한 ══════════
+   바꾸기 전에 미리 재보고, 종이를 넘으면 되돌린 뒤 이유를 알린다 */
+function overflowMm(song) {
+  return layout(song).bottom - (A4.h - LAY.safeBottom);
+}
+function tryChange(mutate, why) {
+  const backup = JSON.parse(JSON.stringify(cur));
+  mutate();
+  const over = overflowMm(cur);
+  if (over > 0) {
+    Object.keys(cur).forEach(k => delete cur[k]);
+    Object.assign(cur, backup);
+    toast(why || `A4 한 장을 ${Math.ceil(over)}mm 넘어서 더 못 늘려요`);
+    return false;
+  }
+  return true;
 }
 
 /* ══════════ 화면 전환 ══════════ */
@@ -148,7 +194,8 @@ function showEdit(song, startStep) {
   $('#song-title').value = song.title;
   $('#opt-keys').checked = song.showKeys;
   $('#opt-hands').checked = song.showHands;
-  $('#hand-count').textContent = song.handCount;
+  renderIconPick();
+  syncHandBar();
   $('#row-count').textContent = song.rows.length;
   $('#col-count').textContent = song.cols;
   $$('#pick-key button').forEach(b => b.classList.toggle('on', +b.dataset.n === song.keyCount));
@@ -174,10 +221,10 @@ function goStep(n) {
   if (step === 1) setTimeout(() => $('#song-title').focus(), 120);
   if (step === 4) updatePos();
   if (step === 5) {
-    const L = layout(cur);
-    $('#fit-hint').textContent = L.bottom > A4.h
-      ? '⚠️ 내용이 A4 한 장을 넘었어요. 줄 수나 손 그림 개수를 줄여 주세요.'
-      : `A4 한 장에 잘 들어가요 (아래 여백 ${Math.round(A4.h - L.bottom)}mm)`;
+    const over = overflowMm(cur);
+    $('#fit-hint').textContent = over > 0
+      ? `⚠️ A4 한 장을 ${Math.ceil(over)}mm 넘었어요. 줄 수나 그림 크기를 줄여 주세요.`
+      : `A4 한 장에 잘 들어가요 (아래 여백 ${Math.round(A4.h - layout(cur).bottom)}mm)`;
   }
   setTimeout(fitPaper, 60);
 }
@@ -248,7 +295,11 @@ $('#pick-key').addEventListener('click', e => {
   renderKeypad(); renderPreview(); persistSoon();
 });
 $('#opt-keys').addEventListener('change', e => {
-  cur.showKeys = e.target.checked;
+  const want = e.target.checked;
+  if (!tryChange(() => { cur.showKeys = want; },
+      'A4 한 장을 넘어서 건반 그림을 넣을 수 없어요')) {
+    e.target.checked = cur.showKeys; return;
+  }
   syncKeyScale(); renderPreview(); persistSoon();
 });
 
@@ -258,7 +309,10 @@ function syncKeyScale() {
   $('#key-scale-field').style.opacity = cur.showKeys ? '1' : '.35';
 }
 function setKeyScale(v) {
-  cur.keyScale = +Math.min(KEY_SCALE_MAX, Math.max(KEY_SCALE_MIN, v)).toFixed(2);
+  const n = +Math.min(KEY_SCALE_MAX, Math.max(KEY_SCALE_MIN, v)).toFixed(2);
+  if (n === keyScale(cur)) return;
+  if (!tryChange(() => { cur.keyScale = n; },
+      'A4 한 장을 넘어서 더 키울 수 없어요')) return;
   syncKeyScale(); renderPreview(); persistSoon();
 }
 $('#key-scale-minus').addEventListener('click', () => setKeyScale(keyScale(cur) - 0.1));
@@ -267,10 +321,14 @@ $('#key-scale-plus').addEventListener('click', () => setKeyScale(keyScale(cur) +
 /* ══════════ ③ 표 크기 ══════════ */
 function setRows(n) {
   n = Math.min(12, Math.max(1, n));
-  while (cur.rows.length < n) cur.rows.push({ cells: Array(cur.cols).fill(''), gapAfter: false });
-  cur.rows.length = n;
-  if (sel.row >= n) sel.row = n - 1;
-  $('#row-count').textContent = n;
+  if (n === cur.rows.length) return;
+  const ok = tryChange(() => {
+    while (cur.rows.length < n) cur.rows.push({ cells: Array(cur.cols).fill(''), gapAfter: false });
+    cur.rows.length = n;
+  }, 'A4 한 장을 넘어서 줄을 더 못 늘려요. 칼림바 그림이나 손 그림을 줄여 보세요');
+  if (!ok) return;
+  if (sel.row >= cur.rows.length) sel.row = cur.rows.length - 1;
+  $('#row-count').textContent = cur.rows.length;
   renderRows(); renderPreview(); persistSoon();
 }
 function setCols(n) {
@@ -301,9 +359,9 @@ function renderRows() {
       </div>
       <div class="cells" style="grid-template-columns:repeat(${cur.cols},1fr)">
         ${r.cells.map((c, ci) => {
-          const cls = isJoin(c) ? 'dash' : (c === '' ? 'empty' : '');
+          const cls = isJoin(c) ? 'dash' : (c === '' ? 'blank' : '');
           const on = (sel.row === ri && sel.cell === ci) ? ' sel' : '';
-          const face = c === '' ? '·' : (c === '~' ? '⇤' : noteHTML(c));
+          const face = c === '' ? '·' : noteHTML(c);
           return `<div class="cell ${cls}${on}" data-ri="${ri}" data-ci="${ci}">${face}</div>`;
         }).join('')}
       </div>
@@ -325,7 +383,10 @@ $('#rows').addEventListener('click', e => {
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
   const ri = +btn.closest('.row-item').dataset.ri;
-  if (btn.dataset.act === 'gap') cur.rows[ri].gapAfter = !cur.rows[ri].gapAfter;
+  if (btn.dataset.act === 'gap') {
+    if (!tryChange(() => { cur.rows[ri].gapAfter = !cur.rows[ri].gapAfter; },
+        'A4 한 장을 넘어서 줄을 띄울 수 없어요')) return;
+  }
   if (btn.dataset.act === 'clear') cur.rows[ri].cells = Array(cur.cols).fill('');
   renderRows(); renderPreview(); persistSoon();
 });
@@ -340,8 +401,10 @@ function renderKeypad() {
       <div class="oct-keys">
         ${[1, 2, 3, 4, 5, 6, 7].map(n => {
           const usable = r.nums.includes(n);
-          return `<button data-k="${noteLabel(n, r.up)}"${usable ? '' : ' disabled'}>
-            <span class="note" data-up="${r.up}">${n}</span></button>`;
+          return usable
+            ? `<button data-k="${noteLabel(n, r.up)}">
+                 <span class="note" data-up="${r.up}">${n}</span></button>`
+            : `<span class="key-blank"></span>`;
         }).join('')}
       </div>
     </div>`).join('');
@@ -363,17 +426,58 @@ $('#keypad').addEventListener('click', e => {
   renderRows(); updatePos(); renderPreview(); persistSoon();
 });
 
-/* ══════════ 손 그림 (미리보기 아래) ══════════ */
+/* ══════════ 색칠용 그림 (미리보기 아래) ══════════ */
+const HAND_SCALE_MIN = 0.6, HAND_SCALE_MAX = 1.8;
+
+function renderIconPick() {
+  $('#icon-pick').innerHTML = icons().map(i =>
+    `<button data-icon="${i.key}" title="${i.label}"
+       class="${i.key === iconOf(cur).key ? 'on' : ''}">
+       <img src="${i.png}" alt="${i.label}"></button>`).join('');
+}
+function syncHandBar() {
+  $('#hand-count').textContent = cur.handCount;
+  $('#hand-scale-val').textContent = Math.round(handScale(cur) * 100) + '%';
+  const off = !cur.showHands;
+  $('#icon-pick').style.opacity = off ? '.3' : '1';
+  $$('.hand-bar .hb-item').forEach(el => el.style.opacity = off ? '.3' : '1');
+}
+
 $('#opt-hands').addEventListener('change', e => {
-  cur.showHands = e.target.checked; renderPreview(); persistSoon();
+  const want = e.target.checked;
+  if (!tryChange(() => { cur.showHands = want; },
+      'A4 한 장을 넘어서 그림을 넣을 수 없어요')) {
+    e.target.checked = cur.showHands; return;
+  }
+  syncHandBar(); renderPreview(); persistSoon();
 });
 $('#hand-minus').addEventListener('click', () => {
   cur.handCount = Math.max(0, cur.handCount - 1);
-  $('#hand-count').textContent = cur.handCount; renderPreview(); persistSoon();
+  syncHandBar(); renderPreview(); persistSoon();
 });
 $('#hand-plus').addEventListener('click', () => {
-  cur.handCount = Math.min(40, cur.handCount + 1);
-  $('#hand-count').textContent = cur.handCount; renderPreview(); persistSoon();
+  if (cur.handCount >= 60) return;
+  if (!tryChange(() => { cur.handCount += 1; },
+      'A4 한 장을 넘어서 개수를 더 못 늘려요')) return;
+  syncHandBar(); renderPreview(); persistSoon();
+});
+$('#hand-scale-minus').addEventListener('click', () => {
+  cur.handScale = +Math.max(HAND_SCALE_MIN, handScale(cur) - 0.1).toFixed(2);
+  syncHandBar(); renderPreview(); persistSoon();
+});
+$('#hand-scale-plus').addEventListener('click', () => {
+  const n = +Math.min(HAND_SCALE_MAX, handScale(cur) + 0.1).toFixed(2);
+  if (n === handScale(cur)) return;
+  if (!tryChange(() => { cur.handScale = n; },
+      'A4 한 장을 넘어서 더 키울 수 없어요')) return;
+  syncHandBar(); renderPreview(); persistSoon();
+});
+$('#icon-pick').addEventListener('click', e => {
+  const b = e.target.closest('button[data-icon]');
+  if (!b) return;
+  if (!tryChange(() => { cur.handIcon = b.dataset.icon; },
+      'A4 한 장을 넘어서 이 그림으로 바꿀 수 없어요')) return;
+  renderIconPick(); renderPreview(); persistSoon();
 });
 
 /* ══════════ 저장 ══════════ */
@@ -430,16 +534,17 @@ function renderPreview() {
   }).join('')}</table>`).join('');
 
   const hands = $('#p-hands');
+  const hb = L.hb;
   hands.style.top = L.handsTop + 'mm';
-  hands.style.gridTemplateColumns = `repeat(${LAY.handsPerRow}, ${LAY.handW}mm)`;
+  hands.style.gridTemplateColumns = `repeat(${hb.perRow}, ${hb.w}mm)`;
   hands.style.rowGap = LAY.handRowGap + 'mm';
   hands.innerHTML = (cur.showHands && cur.handCount > 0)
     ? Array(cur.handCount).fill(
-        `<img src="${window.HAND_PNG}" style="width:${LAY.handW}mm;height:${LAY.handH}mm" alt="">`
+        `<img src="${iconOf(cur).png}" style="width:${hb.w}mm;height:${hb.h}mm" alt="">`
       ).join('')
     : '';
 
-  $('#paper').style.outline = L.bottom > A4.h ? '2px solid #e2614d' : 'none';
+  $('#paper').style.outline = overflowMm(cur) > 0 ? '2px solid #e2614d' : 'none';
   fitPaper();
 }
 
@@ -534,7 +639,7 @@ function buildPdf(song) {
         const x = left + ci * cw, w = cw * u.span;
         doc.rect(x, y, w, LAY.rowH);
         u.parts.forEach((p, k) => {
-          if (p === '' || p === '~') return;
+          if (p === '') return;
           drawNote(doc, p, x + cw * (k + 0.5), y + LAY.rowH / 2, cf);
         });
         ci += u.span;
@@ -545,14 +650,14 @@ function buildPdf(song) {
   });
 
   if (song.showHands && song.handCount > 0) {
+    const ic = iconOf(song), hb = L.hb;
     const hl = (A4.w - LAY.handsW) / 2;
-    const gap = (LAY.handsW - LAY.handsPerRow * LAY.handW) / (LAY.handsPerRow - 1);
     for (let i = 0; i < song.handCount; i++) {
-      const col = i % LAY.handsPerRow, row = Math.floor(i / LAY.handsPerRow);
-      doc.addImage(window.HAND_PNG, 'PNG',
-        hl + col * (LAY.handW + gap),
-        L.handsTop + row * (LAY.handH + LAY.handRowGap),
-        LAY.handW, LAY.handH, 'hand', 'MEDIUM');
+      const col = i % hb.perRow, row = Math.floor(i / hb.perRow);
+      doc.addImage(ic.png, 'PNG',
+        hl + col * (hb.w + hb.gap),
+        L.handsTop + row * (hb.h + LAY.handRowGap),
+        hb.w, hb.h, 'ic-' + ic.key, 'MEDIUM');
     }
   }
   return doc;

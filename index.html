@@ -59,15 +59,29 @@
         </div>
       </div>
       <div class="hand-bar">
-        <label class="check tiny">
-          <input type="checkbox" id="opt-hands" checked>
-          <span>색칠용 손</span>
-        </label>
-        <div class="stepper small">
-          <button id="hand-minus">−</button>
-          <span id="hand-count">16</span>
-          <button id="hand-plus">+</button>
+        <div class="hand-bar-row">
+          <label class="check tiny">
+            <input type="checkbox" id="opt-hands" checked>
+            <span>색칠용 그림</span>
+          </label>
+          <div class="hb-item">
+            <span class="hb-tag">개수</span>
+            <div class="stepper small">
+              <button id="hand-minus">−</button>
+              <span id="hand-count">16</span>
+              <button id="hand-plus">+</button>
+            </div>
+          </div>
+          <div class="hb-item">
+            <span class="hb-tag">크기</span>
+            <div class="stepper small">
+              <button id="hand-scale-minus">−</button>
+              <span id="hand-scale-val">100%</span>
+              <button id="hand-scale-plus">+</button>
+            </div>
+          </div>
         </div>
+        <div class="icon-pick" id="icon-pick"></div>
       </div>
     </div>
 
@@ -83,21 +97,12 @@
         </div>
 
         <div class="step" data-step="2">
-          <h2>칼림바 종류</h2>
-          <p class="guide">건반 수에 따라 쓸 수 있는 계이름이 달라져요.</p>
-          <div class="pick" id="pick-key">
-            <button data-n="17">
-              <b>17건반</b>
-              <span>기본 1~7 · 높음· 1~7 · 높음·· 1~3</span>
-            </button>
-            <button data-n="21">
-              <b>21건반</b>
-              <span>기본 1~7 · 높음· 1~7 · 높음·· 1~7</span>
-            </button>
-          </div>
+          <h2>칼림바</h2>
+
+          <div class="sub">① 건반 그림</div>
           <label class="check">
             <input type="checkbox" id="opt-keys" checked>
-            <span>악보에 칼림바 건반 그림 넣기</span>
+            <span>악보 위쪽에 칼림바 건반 그림 넣기</span>
           </label>
           <div class="field" id="key-scale-field">
             <label>그림 크기</label>
@@ -108,6 +113,19 @@
             </div>
           </div>
           <p class="hint">크기를 줄이면 아래 계이름표가 위로 올라와 공간이 넓어져요.</p>
+
+          <div class="sub">② 건반 수</div>
+          <p class="guide">쓸 수 있는 계이름 범위가 달라져요.</p>
+          <div class="pick" id="pick-key">
+            <button data-n="10">
+              <b>10건반</b>
+              <span>기본 1~7 · 높음· 1~3</span>
+            </button>
+            <button data-n="13">
+              <b>13건반</b>
+              <span>기본 1~7 · 높음· 1~6</span>
+            </button>
+          </div>
         </div>
 
         <div class="step" data-step="3">
@@ -158,7 +176,6 @@
         <div class="octaves" id="octaves"></div>
         <div class="keys-fn">
           <button data-k="-">—<small>길게 누르기</small></button>
-          <button data-k="~">⇤<small>앞 칸과 합치기</small></button>
           <button data-k="" class="muted">빈칸</button>
           <button data-k="BS" class="muted">⌫ 지우기</button>
         </div>
