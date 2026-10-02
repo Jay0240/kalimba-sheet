@@ -14,7 +14,7 @@ const LAY = {
 
   titleH: 16, titleGapBelow: 11, titleMaxW: 174.4,
   barsW: 154.2, barsMax: 57.5, barsMin: 14.7, barsGapBelow: 13.3,
-  sheetW: 174.4, rowH: 21.6, groupGap: 7, cellFont: 9, sheetGapBelow: 12,
+  sheetW: 174.4, groupGap: 7, cellFont: 9, sheetGapBelow: 12,
   handsW: 150, handW: 14, handRowGap: 6, handGapMin: 1.5,
   minFit: 0.55,            // 이보다 작아지면 알려준다
   line: 0.5
@@ -165,9 +165,10 @@ function layout(song) {
 
   const sheetTop = y;
   const groups = groupRows(song.rows);
+  const rowH = cellSize(song.cols);
   let sheetH = 0;
   groups.forEach((g, i) => {
-    sheetH += g.length * LAY.rowH;
+    sheetH += g.length * rowH;
     if (i < groups.length - 1) sheetH += LAY.groupGap;
   });
   y += sheetH;
@@ -186,12 +187,14 @@ function layout(song) {
   const avail = A4.h - LAY.marginTop - LAY.marginBottom;
   const fit = contentH > 0 ? Math.min(1, avail / contentH) : 1;
 
-  return { title, titleFs, tFont, titleTop, titleH, barsTop, barsH,
+  return { title, titleFs, tFont, rowH, titleTop, titleH, barsTop, barsH,
            sheetTop, sheetH, groups, handsTop, handsH, handRows, hb,
            contentH, avail, fit };
 }
+// 칸은 언제나 정사각형 — 높이 = 폭
+function cellSize(cols) { return +(LAY.sheetW / cols).toFixed(3); }
 function cellFont(cols) {
-  return +Math.min(LAY.cellFont, (LAY.sheetW / cols) * 0.52).toFixed(2);
+  return +Math.min(LAY.cellFont, cellSize(cols) * 0.52).toFixed(2);
 }
 function barHeights(n) {
   const mid = (n - 1) / 2;
@@ -582,6 +585,7 @@ function renderPreview() {
   sheet.style.top = L.sheetTop + 'mm';
   sheet.style.fontSize = cellFont(cur.cols) + 'mm';
   sheet.style.fontFamily = noteFontOf(cur).css;
+  sheet.style.setProperty('--cell-h', L.rowH + 'mm');
   sheet.innerHTML = L.groups.map(g => `<table>${g.map(r => {
     const units = mergeCells(r.cells);
     return '<tr>' + units.map(u => {
@@ -742,7 +746,7 @@ function buildPdf(song) {
   const sheetW = sl(LAY.sheetW);
   const left = CX - sheetW / 2;
   const cw = sheetW / song.cols;
-  const rowH = sl(LAY.rowH);
+  const rowH = sl(L.rowH);
   const cf = cellFont(song.cols) * K;
   const nf = noteFontOf(song);
   if (nf.pdf) doc.setFont(nf.pdf, 'bold');
