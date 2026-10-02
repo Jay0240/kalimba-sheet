@@ -138,7 +138,8 @@ function barHeights(n) {
     return +(LAY.barsMax - (LAY.barsMax - LAY.barsMin) * r).toFixed(2);
   });
 }
-function barWidth(n) { return +(LAY.barsW / n * 0.62).toFixed(2); }
+// 실물 칼림바처럼 건반을 두껍게, 사이는 좁게 (한 칸의 85%가 건반)
+function barWidth(n) { return +(LAY.barsW / n * 0.85).toFixed(2); }
 function icons() { return window.HAND_ICONS || []; }
 function iconOf(song) {
   const list = icons();
