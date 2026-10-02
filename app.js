@@ -26,16 +26,27 @@ const FONT = '-apple-system, "Pretendard", "Apple SD Gothic Neo", sans-serif';
    없으면(손글씨 등) 글자를 그림으로 그려 넣는다 */
 const TITLE_FONTS = [
   { key: 'gothic',  label: '고딕',   css: '-apple-system, "Apple SD Gothic Neo", sans-serif' },
-  { key: 'myungjo', label: '명조',   css: '"AppleMyungjo", "Nanum Myeongjo", "Apple SD Gothic Neo", serif' },
-  { key: 'rounded', label: '둥근',   css: '"SF Pro Rounded", "Apple SD Gothic Neo", system-ui, sans-serif' },
-  { key: 'hand',    label: '손글씨', css: '"Chalkboard SE", "Noteworthy", "Apple SD Gothic Neo", cursive' }
+  { key: 'myungjo', label: '명조',   css: '"KalSerif", serif' },
+  { key: 'rounded', label: '둥근',   css: '"KalRound", "Apple SD Gothic Neo", sans-serif' },
+  { key: 'hand',    label: '손글씨', css: '"KalHand", "Apple SD Gothic Neo", cursive' }
 ];
 const NOTE_FONTS = [
   { key: 'gothic', label: '고딕',   css: '-apple-system, "Helvetica Neue", Helvetica, sans-serif', pdf: 'helvetica' },
-  { key: 'serif',  label: '명조',   css: 'Georgia, "Times New Roman", serif',                      pdf: 'times' },
+  { key: 'serif',  label: '명조',   css: '"KalSerif", Georgia, serif',                             pdf: null },
   { key: 'mono',   label: '타자기', css: 'Menlo, Courier, monospace',                              pdf: 'courier' },
-  { key: 'hand',   label: '손글씨', css: '"Chalkboard SE", "Marker Felt", cursive',                pdf: null }
+  { key: 'hand',   label: '손글씨', css: '"KalHand", cursive',                                     pdf: null }
 ];
+
+// 웹폰트가 다 내려와야 글자 폭 계산과 PDF 그림이 맞는다
+let fontsReady = false;
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => {
+    fontsReady = true;
+    if (cur) { renderFontPick(); renderPreview(); }
+  });
+} else {
+  fontsReady = true;
+}
 function titleFontOf(song) {
   return TITLE_FONTS.find(f => f.key === song.titleFont) || TITLE_FONTS[0];
 }
@@ -243,12 +254,23 @@ function cellSize(cols) { return +(LAY.sheetW / cols).toFixed(3); }
 function cellFont(cols) {
   return +Math.min(LAY.cellFont, cellSize(cols) * 0.52).toFixed(2);
 }
+/* 칼림바 건반 배열
+   가운데가 가장 낮은 음(1)이고 거기서 좌우로 번갈아 음이 올라간다.
+     오른쪽 : 2, 4, 6, 8 …   왼쪽 : 3, 5, 7, 9 …
+   음이 높을수록 건반이 짧으므로 좌우가 서로 엇갈린 모양이 된다. */
+function keyOrder(n) {
+  const right = Math.ceil((n - 1) / 2);
+  const left = n - 1 - right;
+  const ranks = [];
+  for (let i = left; i >= 1; i--) ranks.push(2 * i + 1);   // 왼쪽 (바깥 → 안)
+  ranks.push(1);                                           // 가운데 = 가장 낮은 음
+  for (let i = 1; i <= right; i++) ranks.push(2 * i);      // 오른쪽 (안 → 바깥)
+  return ranks;
+}
 function barHeights(n) {
-  const mid = (n - 1) / 2;
-  return Array.from({ length: n }, (_, i) => {
-    const r = Math.abs(i - mid) / mid;
-    return +(LAY.barsMax - (LAY.barsMax - LAY.barsMin) * r).toFixed(2);
-  });
+  if (n <= 1) return [LAY.barsMax];
+  return keyOrder(n).map(rank =>
+    +(LAY.barsMax - (LAY.barsMax - LAY.barsMin) * (rank - 1) / (n - 1)).toFixed(2));
 }
 // 실물 칼림바처럼 건반을 두껍게, 사이는 좁게 (한 칸의 85%가 건반)
 function barWidth(n) { return +(LAY.barsW / n * 0.85).toFixed(2); }
@@ -839,6 +861,7 @@ $('#btn-pdf').addEventListener('click', async () => {
   if (!cur) return;
   touch();
   try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
     const doc = buildPdf(cur);
     const name = ((cur.title || '칼림바악보').replace(/[\\/:*?"<>|]/g, '')) + '.pdf';
     const blob = doc.output('blob');

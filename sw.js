@@ -3,7 +3,7 @@
    - 라이브러리·이미지는 캐시 우선 → 빠르고 오프라인에서도 뜬다
    - 인터넷이 없으면 어느 쪽이든 캐시로 떨어진다                        */
 
-const CACHE = 'kalimba-v2';
+const CACHE = 'kalimba-v4';
 
 const PRECACHE = [
   './', './index.html', './style.css', './app.js',
@@ -14,7 +14,7 @@ const PRECACHE = [
 
 // 자주 고치는 파일 — 항상 새것을 먼저 받아온다
 const FRESH = /\.(html|js|css|json)$/i;
-const LIB = /\/lib\//;
+const LIB = /\/(lib|fonts)\//;
 
 self.addEventListener('install', e => {
   e.waitUntil(

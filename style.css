@@ -1,3 +1,21 @@
+/* 한글 글꼴 — 아이패드에 명조·둥근·손글씨가 없어 앱에 직접 넣었다.
+   고른 글씨체를 쓸 때만 내려받으므로 기본(고딕)만 쓰면 받지 않는다. */
+@font-face {
+  font-family: 'KalSerif';
+  src: url('fonts/serifkr.woff2') format('woff2');
+  font-weight: 400 900; font-display: swap;
+}
+@font-face {
+  font-family: 'KalRound';
+  src: url('fonts/jua.woff2') format('woff2');
+  font-weight: 400 900; font-display: swap;
+}
+@font-face {
+  font-family: 'KalHand';
+  src: url('fonts/gaegu.woff2') format('woff2');
+  font-weight: 400 900; font-display: swap;
+}
+
 /* ══════════════════════════════════════
    칼림바 악보 — 아이패드 웹앱
    ══════════════════════════════════════ */
