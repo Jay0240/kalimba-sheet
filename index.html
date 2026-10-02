@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#181614">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="칼림바악보">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+<title>칼림바 악보</title>
+</head>
+<body>
+
+<!-- ══════════ 곡 목록 ══════════ -->
+<section id="view-list" class="view">
+  <header class="topbar">
+    <h1 class="brand">칼림바 악보</h1>
+    <button class="btn primary" id="btn-new">+ 새 악보</button>
+  </header>
+
+  <div class="list-wrap">
+    <div id="song-list" class="song-list"></div>
+    <p id="list-empty" class="empty">아직 만든 악보가 없어요.<br>오른쪽 위 <b>+ 새 악보</b>를 눌러 시작하세요.</p>
+  </div>
+</section>
+
+<!-- ══════════ 편집 ══════════ -->
+<section id="view-edit" class="view hidden">
+  <header class="topbar">
+    <button class="btn ghost" id="btn-back">‹ 목록</button>
+    <input id="song-title" class="title-input" type="text" placeholder="곡 제목" maxlength="20">
+    <div class="topbar-right">
+      <button class="btn" id="btn-print">인쇄로 저장</button>
+      <button class="btn primary" id="btn-pdf">PDF 저장</button>
+    </div>
+  </header>
+
+  <div class="editor">
+
+    <!-- ── 미리보기 ── -->
+    <div class="preview-pane">
+      <div class="preview-scroll">
+        <div class="paper-scaler" id="paper-scaler">
+          <!-- A4 실제 크기 (210×297mm) -->
+          <div class="paper" id="paper">
+            <div class="p-title" id="p-title"></div>
+            <div class="p-bars" id="p-bars"></div>
+            <div class="p-sheet" id="p-sheet"></div>
+            <div class="p-hands" id="p-hands"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 편집 패널 ── -->
+    <div class="edit-pane">
+
+      <div class="panel compact">
+        <div class="panel-head">
+          <span>칼림바 건반</span>
+          <div class="head-ctrl">
+            <div class="seg" id="seg-keycount">
+              <button data-n="17" class="on">17</button>
+              <button data-n="21">21</button>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="opt-keys" checked><span></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><span>악보</span>
+          <div class="mini-actions">
+            <button class="btn tiny" id="btn-cols">칸 수</button>
+            <button class="btn tiny" id="btn-addrow">+ 줄</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="rows" class="rows"></div>
+        </div>
+      </div>
+
+      <div class="panel compact">
+        <div class="panel-head">
+          <span>색칠용 손</span>
+          <div class="head-ctrl">
+            <div class="stepper">
+              <button id="hand-minus">−</button>
+              <span id="hand-count">16</span>
+              <button id="hand-plus">+</button>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="opt-hands" checked><span></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 터치 키패드 (옥타브별 계이름) ── -->
+      <div class="keypad" id="keypad">
+        <div class="keypad-hint" id="keypad-hint">칸을 누르고 계이름을 입력하세요</div>
+        <div class="octaves" id="octaves"></div>
+        <div class="keys-fn">
+          <button data-k="-">—<small>길게 누르기</small></button>
+          <button data-k="" class="muted">빈칸</button>
+          <button data-k="BS" class="muted">⌫ 지우기</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div id="toast" class="toast"></div>
+
+<script src="assets/hand-data.js"></script>
+<script src="lib/jspdf.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

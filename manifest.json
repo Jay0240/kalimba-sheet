@@ -1,0 +1,16 @@
+{
+  "name": "칼림바 악보",
+  "short_name": "칼림바악보",
+  "description": "칼림바 숫자 악보를 만들고 A4 PDF로 저장합니다",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#181614",
+  "theme_color": "#181614",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
