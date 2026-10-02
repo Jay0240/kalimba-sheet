@@ -21,31 +21,35 @@
     <h1 class="brand">칼림바 악보</h1>
     <button class="btn primary" id="btn-new">+ 새 악보</button>
   </header>
-
   <div class="list-wrap">
     <div id="song-list" class="song-list"></div>
     <p id="list-empty" class="empty">아직 만든 악보가 없어요.<br>오른쪽 위 <b>+ 새 악보</b>를 눌러 시작하세요.</p>
   </div>
 </section>
 
-<!-- ══════════ 편집 ══════════ -->
+<!-- ══════════ 편집 (단계별) ══════════ -->
 <section id="view-edit" class="view hidden">
+
   <header class="topbar">
     <button class="btn ghost" id="btn-back">‹ 목록</button>
-    <input id="song-title" class="title-input" type="text" placeholder="곡 제목" maxlength="20">
-    <div class="topbar-right">
-      <button class="btn" id="btn-print">인쇄로 저장</button>
-      <button class="btn primary" id="btn-pdf">PDF 저장</button>
-    </div>
+    <span class="now-title" id="now-title">제목 없음</span>
+    <span class="saved" id="saved-mark"></span>
   </header>
+
+  <nav class="steps" id="steps">
+    <button data-step="1"><i>1</i>제목</button>
+    <button data-step="2"><i>2</i>칼림바</button>
+    <button data-step="3"><i>3</i>표 크기</button>
+    <button data-step="4"><i>4</i>계이름</button>
+    <button data-step="5"><i>5</i>인쇄</button>
+  </nav>
 
   <div class="editor">
 
-    <!-- ── 미리보기 ── -->
+    <!-- 왼쪽 — 미리보기 + 손 그림 바 -->
     <div class="preview-pane">
       <div class="preview-scroll">
         <div class="paper-scaler" id="paper-scaler">
-          <!-- A4 실제 크기 (210×297mm) -->
           <div class="paper" id="paper">
             <div class="p-title" id="p-title"></div>
             <div class="p-bars" id="p-bars"></div>
@@ -54,57 +58,94 @@
           </div>
         </div>
       </div>
+      <div class="hand-bar">
+        <label class="check tiny">
+          <input type="checkbox" id="opt-hands" checked>
+          <span>색칠용 손</span>
+        </label>
+        <div class="stepper small">
+          <button id="hand-minus">−</button>
+          <span id="hand-count">16</span>
+          <button id="hand-plus">+</button>
+        </div>
+      </div>
     </div>
 
-    <!-- ── 편집 패널 ── -->
-    <div class="edit-pane">
+    <!-- 오른쪽 — 단계 -->
+    <div class="step-pane">
+      <div class="step-body">
 
-      <div class="panel compact">
-        <div class="panel-head">
-          <span>칼림바 건반</span>
-          <div class="head-ctrl">
-            <div class="seg" id="seg-keycount">
-              <button data-n="17" class="on">17</button>
-              <button data-n="21">21</button>
+        <div class="step" data-step="1">
+          <h2>악보 제목</h2>
+          <p class="guide">종이 맨 위에 한 글자씩 네모 칸으로 들어가요.</p>
+          <input id="song-title" class="big-input" type="text" placeholder="예: 학교종" maxlength="12">
+          <p class="hint" id="title-hint"></p>
+        </div>
+
+        <div class="step" data-step="2">
+          <h2>칼림바 종류</h2>
+          <p class="guide">건반 수에 따라 쓸 수 있는 계이름이 달라져요.</p>
+          <div class="pick" id="pick-key">
+            <button data-n="17">
+              <b>17건반</b>
+              <span>기본 1~7 · 높음· 1~7 · 높음·· 1~3</span>
+            </button>
+            <button data-n="21">
+              <b>21건반</b>
+              <span>기본 1~7 · 높음· 1~7 · 높음·· 1~7</span>
+            </button>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="opt-keys" checked>
+            <span>악보에 칼림바 건반 그림 넣기</span>
+          </label>
+        </div>
+
+        <div class="step" data-step="3">
+          <h2>계이름표 크기</h2>
+          <p class="guide">줄은 세로, 칸은 한 줄에 들어가는 음의 개수예요.</p>
+          <div class="field">
+            <label>줄 수</label>
+            <div class="stepper big">
+              <button id="row-minus">−</button><span id="row-count">4</span><button id="row-plus">+</button>
             </div>
-            <label class="switch">
-              <input type="checkbox" id="opt-keys" checked><span></span>
-            </label>
           </div>
+          <div class="field">
+            <label>한 줄 칸 수</label>
+            <div class="stepper big">
+              <button id="col-minus">−</button><span id="col-count">8</span><button id="col-plus">+</button>
+            </div>
+          </div>
+          <p class="hint">줄을 줄이면 맨 아래 줄부터 지워져요.</p>
         </div>
-      </div>
 
-      <div class="panel">
-        <div class="panel-head"><span>악보</span>
-          <div class="mini-actions">
-            <button class="btn tiny" id="btn-cols">칸 수</button>
-            <button class="btn tiny" id="btn-addrow">+ 줄</button>
+        <div class="step" data-step="4">
+          <div class="step-head-row">
+            <h2>계이름 입력</h2>
+            <span class="pos" id="pos-mark"></span>
           </div>
-        </div>
-        <div class="panel-body">
           <div id="rows" class="rows"></div>
         </div>
-      </div>
 
-      <div class="panel compact">
-        <div class="panel-head">
-          <span>색칠용 손</span>
-          <div class="head-ctrl">
-            <div class="stepper">
-              <button id="hand-minus">−</button>
-              <span id="hand-count">16</span>
-              <button id="hand-plus">+</button>
-            </div>
-            <label class="switch">
-              <input type="checkbox" id="opt-hands" checked><span></span>
-            </label>
+        <div class="step" data-step="5">
+          <h2>인쇄 · 저장</h2>
+          <p class="guide">A4 한 장으로 나와요. 왼쪽 미리보기 그대로 저장됩니다.</p>
+          <div class="save-btns">
+            <button class="big-btn primary" id="btn-print">
+              <b>인쇄로 저장</b>
+              <span>인쇄 화면에서 <i>PDF로 저장</i> 선택</span>
+            </button>
+            <button class="big-btn" id="btn-pdf">
+              <b>PDF 파일로 저장</b>
+              <span>앱이 직접 PDF를 만들어 공유</span>
+            </button>
           </div>
+          <p class="hint" id="fit-hint"></p>
         </div>
+
       </div>
 
-      <!-- ── 터치 키패드 (옥타브별 계이름) ── -->
-      <div class="keypad" id="keypad">
-        <div class="keypad-hint" id="keypad-hint">칸을 누르고 계이름을 입력하세요</div>
+      <div class="keypad hidden" id="keypad">
         <div class="octaves" id="octaves"></div>
         <div class="keys-fn">
           <button data-k="-">—<small>길게 누르기</small></button>
@@ -113,7 +154,12 @@
         </div>
       </div>
 
+      <footer class="step-nav">
+        <button class="btn" id="btn-prev">‹ 이전</button>
+        <button class="btn primary" id="btn-next">다음 ›</button>
+      </footer>
     </div>
+
   </div>
 </section>
 
