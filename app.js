@@ -9,15 +9,39 @@
 const A4 = { w: 210, h: 297 };
 
 const LAY = {
-  titleTop: 17.6, titleBox: 21.3, titleBoxH: 21, titleGap: 8.6,
-  barsTop: 52.3, barsW: 154.2, barsMax: 57.5, barsMin: 14.7,
-  sheetW: 174.4, rowH: 21.6, groupGap: 7, cellFont: 9,
-  barsGapBelow: 13.3, sheetTopNoBars: 40,
-  sheetGapBelow: 12,
+  // 종이 여백은 고정. 내용이 많아지면 전체를 비율대로 줄인다
+  marginTop: 15, marginBottom: 15,
+
+  titleH: 16, titleGapBelow: 11, titleMaxW: 174.4,
+  barsW: 154.2, barsMax: 57.5, barsMin: 14.7, barsGapBelow: 13.3,
+  sheetW: 174.4, rowH: 21.6, groupGap: 7, cellFont: 9, sheetGapBelow: 12,
   handsW: 150, handW: 14, handRowGap: 6, handGapMin: 1.5,
-  safeBottom: 10,          // 종이 아래 최소 여백
+  minFit: 0.55,            // 이보다 작아지면 알려준다
   line: 0.5
 };
+const FONT = '-apple-system, "Pretendard", "Apple SD Gothic Neo", sans-serif';
+
+/* 고를 수 있는 글씨체
+   pdf 가 있으면 PDF에서 그 내장 글꼴을 쓰고,
+   없으면(손글씨 등) 글자를 그림으로 그려 넣는다 */
+const TITLE_FONTS = [
+  { key: 'gothic',  label: '고딕',   css: '-apple-system, "Apple SD Gothic Neo", sans-serif' },
+  { key: 'myungjo', label: '명조',   css: '"AppleMyungjo", "Nanum Myeongjo", "Apple SD Gothic Neo", serif' },
+  { key: 'rounded', label: '둥근',   css: '"SF Pro Rounded", "Apple SD Gothic Neo", system-ui, sans-serif' },
+  { key: 'hand',    label: '손글씨', css: '"Chalkboard SE", "Noteworthy", "Apple SD Gothic Neo", cursive' }
+];
+const NOTE_FONTS = [
+  { key: 'gothic', label: '고딕',   css: '-apple-system, "Helvetica Neue", Helvetica, sans-serif', pdf: 'helvetica' },
+  { key: 'serif',  label: '명조',   css: 'Georgia, "Times New Roman", serif',                      pdf: 'times' },
+  { key: 'mono',   label: '타자기', css: 'Menlo, Courier, monospace',                              pdf: 'courier' },
+  { key: 'hand',   label: '손글씨', css: '"Chalkboard SE", "Marker Felt", cursive',                pdf: null }
+];
+function titleFontOf(song) {
+  return TITLE_FONTS.find(f => f.key === song.titleFont) || TITLE_FONTS[0];
+}
+function noteFontOf(song) {
+  return NOTE_FONTS.find(f => f.key === song.noteFont) || NOTE_FONTS[0];
+}
 
 const MM2PX = 96 / 25.4;
 const STORE = 'kalimba.songs';
@@ -45,6 +69,7 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 function newSong() {
   return {
     id: uid(), title: '', updatedAt: Date.now(),
+    titleFont: 'gothic', noteFont: 'gothic',
     showKeys: true, keyCount: 10, keyScale: 1, cols: 8,
     rows: Array.from({ length: 4 }, () => ({ cells: Array(8).fill(''), gapAfter: false })),
     showHands: true, handCount: 16, handIcon: 'victory', handScale: 1
@@ -110,23 +135,60 @@ function groupRows(rows) {
   if (g.length) groups.push(g);
   return groups;
 }
+// 제목 글자 크기 — 종이 폭을 넘으면 자동으로 줄인다
+function titleFont(text, css) {
+  if (!text) return 0;
+  const c = (titleFont._c || (titleFont._c = document.createElement('canvas')));
+  const g = c.getContext('2d');
+  g.font = `700 100px ${css || FONT}`;
+  const ratio = g.measureText(text).width / 100;      // 글자크기 1당 폭
+  if (!ratio) return LAY.titleH;
+  return +Math.min(LAY.titleH, LAY.titleMaxW / ratio).toFixed(2);
+}
+
+/* 세로 배치를 한 번에 계산한다.
+   좌표는 '내용 덩어리 안에서의 위치'(0부터)이고,
+   종이에 올릴 때 위 여백(marginTop)에서 시작해 fit 배율로 줄인다. */
 function layout(song) {
+  let y = 0;
+
+  const title = (song.title || '').trim();
+  const tFont = titleFontOf(song);
+  const titleFs = titleFont(title, tFont.css);
+  const titleH = title ? LAY.titleH : 0;
+  const titleTop = y;
+  if (titleH) y += titleH + LAY.titleGapBelow;
+
+  const barsTop = y;
+  const barsH = song.showKeys ? LAY.barsMax * keyScale(song) : 0;
+  if (barsH) y += barsH + LAY.barsGapBelow;
+
+  const sheetTop = y;
   const groups = groupRows(song.rows);
-  const sheetTop = song.showKeys
-    ? LAY.barsTop + LAY.barsMax * keyScale(song) + LAY.barsGapBelow
-    : LAY.sheetTopNoBars;
   let sheetH = 0;
   groups.forEach((g, i) => {
     sheetH += g.length * LAY.rowH;
     if (i < groups.length - 1) sheetH += LAY.groupGap;
   });
+  y += sheetH;
+
   const hb = handBox(song);
   const handRows = song.showHands && song.handCount > 0
     ? Math.ceil(song.handCount / hb.perRow) : 0;
-  const handsTop = sheetTop + sheetH + (handRows ? LAY.sheetGapBelow : 0);
-  const handsH = handRows ? handRows * hb.h + (handRows - 1) * LAY.handRowGap : 0;
-  return { groups, sheetTop, sheetH, handsTop, handRows, handsH, hb,
-           bottom: handsTop + handsH };
+  let handsTop = y, handsH = 0;
+  if (handRows) {
+    handsTop = y + LAY.sheetGapBelow;
+    handsH = handRows * hb.h + (handRows - 1) * LAY.handRowGap;
+    y = handsTop + handsH;
+  }
+
+  const contentH = y;
+  const avail = A4.h - LAY.marginTop - LAY.marginBottom;
+  const fit = contentH > 0 ? Math.min(1, avail / contentH) : 1;
+
+  return { title, titleFs, tFont, titleTop, titleH, barsTop, barsH,
+           sheetTop, sheetH, groups, handsTop, handsH, handRows, hb,
+           contentH, avail, fit };
 }
 function cellFont(cols) {
   return +Math.min(LAY.cellFont, (LAY.sheetW / cols) * 0.52).toFixed(2);
@@ -163,24 +225,6 @@ function keyScale(song) {
   return (typeof v === 'number' && v > 0) ? v : 1;   // 예전에 만든 곡 대비
 }
 
-/* ══════════ A4 한 장 제한 ══════════
-   바꾸기 전에 미리 재보고, 종이를 넘으면 되돌린 뒤 이유를 알린다 */
-function overflowMm(song) {
-  return layout(song).bottom - (A4.h - LAY.safeBottom);
-}
-function tryChange(mutate, why) {
-  const backup = JSON.parse(JSON.stringify(cur));
-  mutate();
-  const over = overflowMm(cur);
-  if (over > 0) {
-    Object.keys(cur).forEach(k => delete cur[k]);
-    Object.assign(cur, backup);
-    toast(why || `A4 한 장을 ${Math.ceil(over)}mm 넘어서 더 못 늘려요`);
-    return false;
-  }
-  return true;
-}
-
 /* ══════════ 화면 전환 ══════════ */
 function showList() {
   $('#view-edit').classList.add('hidden');
@@ -196,6 +240,7 @@ function showEdit(song, startStep) {
   $('#opt-keys').checked = song.showKeys;
   $('#opt-hands').checked = song.showHands;
   renderIconPick();
+  renderFontPick();
   syncHandBar();
   $('#row-count').textContent = song.rows.length;
   $('#col-count').textContent = song.cols;
@@ -221,12 +266,7 @@ function goStep(n) {
   $('#btn-next').classList.toggle('hidden', step === LAST_STEP);
   if (step === 1) setTimeout(() => $('#song-title').focus(), 120);
   if (step === 4) updatePos();
-  if (step === 5) {
-    const over = overflowMm(cur);
-    $('#fit-hint').textContent = over > 0
-      ? `⚠️ A4 한 장을 ${Math.ceil(over)}mm 넘었어요. 줄 수나 그림 크기를 줄여 주세요.`
-      : `A4 한 장에 잘 들어가요 (아래 여백 ${Math.round(A4.h - layout(cur).bottom)}mm)`;
-  }
+  if (step === 5) updateFitHint(layout(cur));
   setTimeout(fitPaper, 60);
 }
 $('#btn-prev').addEventListener('click', () => goStep(step - 1));
@@ -288,6 +328,27 @@ $('#song-title').addEventListener('input', () => {
   renderPreview(); persistSoon();
 });
 
+function renderFontPick() {
+  const btn = (f, sample, onKey) =>
+    `<button data-f="${f.key}" style='font-family:${f.css}'
+       class="${f.key === onKey ? 'on' : ''}">
+       <b>${sample}</b><span>${f.label}</span></button>`;
+  $('#title-font').innerHTML =
+    TITLE_FONTS.map(f => btn(f, '가나', titleFontOf(cur).key)).join('');
+  $('#note-font').innerHTML =
+    NOTE_FONTS.map(f => btn(f, '135', noteFontOf(cur).key)).join('');
+}
+$('#title-font').addEventListener('click', e => {
+  const b = e.target.closest('button[data-f]'); if (!b) return;
+  cur.titleFont = b.dataset.f;
+  renderFontPick(); renderPreview(); persistSoon();
+});
+$('#note-font').addEventListener('click', e => {
+  const b = e.target.closest('button[data-f]'); if (!b) return;
+  cur.noteFont = b.dataset.f;
+  renderFontPick(); renderPreview(); persistSoon();
+});
+
 /* ══════════ ② 칼림바 ══════════ */
 $('#pick-key').addEventListener('click', e => {
   const b = e.target.closest('button[data-n]'); if (!b) return;
@@ -296,11 +357,7 @@ $('#pick-key').addEventListener('click', e => {
   renderKeypad(); renderPreview(); persistSoon();
 });
 $('#opt-keys').addEventListener('change', e => {
-  const want = e.target.checked;
-  if (!tryChange(() => { cur.showKeys = want; },
-      'A4 한 장을 넘어서 건반 그림을 넣을 수 없어요')) {
-    e.target.checked = cur.showKeys; return;
-  }
+  cur.showKeys = e.target.checked;
   syncKeyScale(); renderPreview(); persistSoon();
 });
 
@@ -312,8 +369,7 @@ function syncKeyScale() {
 function setKeyScale(v) {
   const n = +Math.min(KEY_SCALE_MAX, Math.max(KEY_SCALE_MIN, v)).toFixed(2);
   if (n === keyScale(cur)) return;
-  if (!tryChange(() => { cur.keyScale = n; },
-      'A4 한 장을 넘어서 더 키울 수 없어요')) return;
+  cur.keyScale = n;
   syncKeyScale(); renderPreview(); persistSoon();
 }
 $('#key-scale-minus').addEventListener('click', () => setKeyScale(keyScale(cur) - 0.1));
@@ -321,13 +377,10 @@ $('#key-scale-plus').addEventListener('click', () => setKeyScale(keyScale(cur) +
 
 /* ══════════ ③ 표 크기 ══════════ */
 function setRows(n) {
-  n = Math.min(12, Math.max(1, n));
+  n = Math.min(16, Math.max(1, n));
   if (n === cur.rows.length) return;
-  const ok = tryChange(() => {
-    while (cur.rows.length < n) cur.rows.push({ cells: Array(cur.cols).fill(''), gapAfter: false });
-    cur.rows.length = n;
-  }, 'A4 한 장을 넘어서 줄을 더 못 늘려요. 칼림바 그림이나 손 그림을 줄여 보세요');
-  if (!ok) return;
+  while (cur.rows.length < n) cur.rows.push({ cells: Array(cur.cols).fill(''), gapAfter: false });
+  cur.rows.length = n;
   if (sel.row >= cur.rows.length) sel.row = cur.rows.length - 1;
   $('#row-count').textContent = cur.rows.length;
   renderRows(); renderPreview(); persistSoon();
@@ -384,10 +437,7 @@ $('#rows').addEventListener('click', e => {
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
   const ri = +btn.closest('.row-item').dataset.ri;
-  if (btn.dataset.act === 'gap') {
-    if (!tryChange(() => { cur.rows[ri].gapAfter = !cur.rows[ri].gapAfter; },
-        'A4 한 장을 넘어서 줄을 띄울 수 없어요')) return;
-  }
+  if (btn.dataset.act === 'gap') cur.rows[ri].gapAfter = !cur.rows[ri].gapAfter;
   if (btn.dataset.act === 'clear') cur.rows[ri].cells = Array(cur.cols).fill('');
   renderRows(); renderPreview(); persistSoon();
 });
@@ -445,11 +495,7 @@ function syncHandBar() {
 }
 
 $('#opt-hands').addEventListener('change', e => {
-  const want = e.target.checked;
-  if (!tryChange(() => { cur.showHands = want; },
-      'A4 한 장을 넘어서 그림을 넣을 수 없어요')) {
-    e.target.checked = cur.showHands; return;
-  }
+  cur.showHands = e.target.checked;
   syncHandBar(); renderPreview(); persistSoon();
 });
 $('#hand-minus').addEventListener('click', () => {
@@ -458,8 +504,7 @@ $('#hand-minus').addEventListener('click', () => {
 });
 $('#hand-plus').addEventListener('click', () => {
   if (cur.handCount >= 60) return;
-  if (!tryChange(() => { cur.handCount += 1; },
-      'A4 한 장을 넘어서 개수를 더 못 늘려요')) return;
+  cur.handCount += 1;
   syncHandBar(); renderPreview(); persistSoon();
 });
 $('#hand-scale-minus').addEventListener('click', () => {
@@ -469,15 +514,13 @@ $('#hand-scale-minus').addEventListener('click', () => {
 $('#hand-scale-plus').addEventListener('click', () => {
   const n = +Math.min(HAND_SCALE_MAX, handScale(cur) + 0.1).toFixed(2);
   if (n === handScale(cur)) return;
-  if (!tryChange(() => { cur.handScale = n; },
-      'A4 한 장을 넘어서 더 키울 수 없어요')) return;
+  cur.handScale = n;
   syncHandBar(); renderPreview(); persistSoon();
 });
 $('#icon-pick').addEventListener('click', e => {
   const b = e.target.closest('button[data-icon]');
   if (!b) return;
-  if (!tryChange(() => { cur.handIcon = b.dataset.icon; },
-      'A4 한 장을 넘어서 이 그림으로 바꿀 수 없어요')) return;
+  cur.handIcon = b.dataset.icon;
   renderIconPick(); renderPreview(); persistSoon();
 });
 
@@ -505,15 +548,28 @@ function renderPreview() {
   if (!cur) return;
   const L = layout(cur);
 
-  $('#p-title').innerHTML = [...(cur.title || '')].filter(c => c.trim())
-    .map(c => `<b>${esc(c)}</b>`).join('');
+  // 내용 덩어리 — 위 여백에서 시작하고, 넘치면 통째로 줄인다
+  const content = $('#p-content');
+  content.style.top = LAY.marginTop + 'mm';
+  content.style.transform = `scale(${L.fit})`;
 
+  // 제목 (테두리 없이 글자만)
+  const t = $('#p-title');
+  t.style.display = L.title ? 'block' : 'none';
+  t.style.top = L.titleTop + 'mm';
+  t.style.height = L.titleH + 'mm';
+  t.style.fontSize = L.titleFs + 'mm';
+  t.style.fontFamily = L.tFont.css;
+  t.textContent = L.title;
+
+  // 칼림바 건반
   const bars = $('#p-bars');
   if (cur.showKeys) {
     const n = cur.keyCount, k = keyScale(cur), w = barWidth(n) * k;
     bars.style.display = 'flex';
+    bars.style.top = L.barsTop + 'mm';
     bars.style.width = (LAY.barsW * k) + 'mm';
-    bars.style.height = (LAY.barsMax * k) + 'mm';
+    bars.style.height = L.barsH + 'mm';
     bars.innerHTML = barHeights(n)
       .map(h => `<i style="width:${w}mm;height:${(h * k).toFixed(2)}mm"></i>`).join('');
   } else {
@@ -521,9 +577,11 @@ function renderPreview() {
     bars.innerHTML = '';
   }
 
+  // 계이름표
   const sheet = $('#p-sheet');
   sheet.style.top = L.sheetTop + 'mm';
   sheet.style.fontSize = cellFont(cur.cols) + 'mm';
+  sheet.style.fontFamily = noteFontOf(cur).css;
   sheet.innerHTML = L.groups.map(g => `<table>${g.map(r => {
     const units = mergeCells(r.cells);
     return '<tr>' + units.map(u => {
@@ -534,6 +592,7 @@ function renderPreview() {
     }).join('') + '</tr>';
   }).join('')}</table>`).join('');
 
+  // 색칠용 그림
   const hands = $('#p-hands');
   const hb = L.hb;
   hands.style.top = L.handsTop + 'mm';
@@ -545,8 +604,21 @@ function renderPreview() {
       ).join('')
     : '';
 
-  $('#paper').style.outline = overflowMm(cur) > 0 ? '2px solid #e2614d' : 'none';
+  // 너무 작아지면 알려준다 (잘리지는 않는다)
+  $('#paper').style.outline = L.fit < LAY.minFit ? '2px solid #e2614d' : 'none';
+  updateFitHint(L);
   fitPaper();
+}
+
+function updateFitHint(L) {
+  const el = $('#fit-hint');
+  if (!el) return;
+  const pct = Math.round(L.fit * 100);
+  el.textContent = L.fit >= 1
+    ? `A4 한 장에 그대로 들어가요 (아래 여백 ${Math.round(LAY.marginBottom + (L.avail - L.contentH))}mm)`
+    : (L.fit < LAY.minFit
+        ? `⚠️ 내용이 많아 ${pct}%까지 줄었어요. 글씨가 작아지니 줄 수나 그림을 줄여 보세요`
+        : `내용이 많아 ${pct}% 로 줄여서 한 장에 담았어요`);
 }
 
 function fitPaper() {
@@ -568,26 +640,60 @@ window.addEventListener('orientationchange', () => setTimeout(fitPaper, 300));
 /* ══════════ ⑤ 인쇄 · PDF ══════════ */
 $('#btn-print').addEventListener('click', () => { touch(); window.print(); });
 
-function charToPng(ch, boxMm) {
-  const px = Math.round(boxMm * 14);
+// 제목은 한글이라 jsPDF 기본 폰트로 못 쓴다 — 캔버스에 그려 그림으로 넣는다
+function titlePng(text, fontMm, css) {
+  const PPM = 14;                       // 1mm 당 픽셀 (약 350dpi)
+  const fs = Math.max(8, fontMm * PPM);
   const c = document.createElement('canvas');
-  c.width = px; c.height = px;
-  const g = c.getContext('2d');
-  g.fillStyle = '#fff'; g.fillRect(0, 0, px, px);
+  let g = c.getContext('2d');
+  g.font = `700 ${fs}px ${css || FONT}`;
+  const w = Math.ceil(g.measureText(text).width) + 8;
+  const h = Math.ceil(fs * 1.3);
+  c.width = w; c.height = h;
+  g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
   g.fillStyle = '#000';
+  g.font = `700 ${fs}px ${css || FONT}`;
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = `700 ${Math.round(px * 0.58)}px -apple-system, "Pretendard", "Apple SD Gothic Neo", sans-serif`;
-  g.fillText(ch, px / 2, px / 2 + px * 0.02);
-  return c.toDataURL('image/png');
+  g.fillText(text, w / 2, h / 2);
+  return { url: c.toDataURL('image/png'), w: w / PPM, h: h / PPM };
+}
+
+// PDF 내장 글꼴에 없는 글씨체는 글자를 그림으로 그려 넣는다
+function glyphPng(ch, css, fontMm) {
+  const PPM = 18;
+  const fs = Math.max(10, fontMm * PPM);
+  const c = document.createElement('canvas');
+  let g = c.getContext('2d');
+  g.font = `700 ${fs}px ${css}`;
+  const w = Math.ceil(g.measureText(ch).width) + 6;
+  const h = Math.ceil(fs * 1.25);
+  c.width = w; c.height = h;
+  g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#000';
+  g.font = `700 ${fs}px ${css}`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(ch, w / 2, h / 2);
+  return { url: c.toDataURL('image/png'), w: w / PPM, h: h / PPM };
 }
 
 // 계이름 한 글자 — 옥타브는 숫자 위 점으로
-function drawNote(doc, v, cx, cy, f) {
+function drawNote(doc, v, cx, cy, f, nf) {
   const p = parseNote(v);
-  if (!p) { doc.text(String(v), cx, cy, { align: 'center', baseline: 'middle' }); return; }
-  doc.text(p.num, cx, cy, { align: 'center', baseline: 'middle' });
+  const put = ch => {
+    if (nf && !nf.pdf) {                       // 그림으로 그리는 글씨체
+      const gp = glyphPng(ch, nf.css, f);
+      doc.addImage(gp.url, 'PNG', cx - gp.w / 2, cy - gp.h / 2, gp.w, gp.h,
+        'g-' + nf.key + '-' + ch, 'MEDIUM');
+    } else {
+      doc.text(ch, cx, cy, { align: 'center', baseline: 'middle' });
+    }
+  };
+  if (!p) { put(String(v)); return; }
+  put(p.num);
   if (!p.up) return;
-  const r = f * 0.075, dy = cy - f * 0.56;
+  const r = Math.max(0.25, f * 0.075), dy = cy - f * 0.56;
   doc.setFillColor(0);
   if (p.up === 1) doc.circle(cx, dy, r, 'F');
   else { doc.circle(cx - r * 2.4, dy, r, 'F'); doc.circle(cx + r * 2.4, dy, r, 'F'); }
@@ -597,68 +703,81 @@ function buildPdf(song) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const L = layout(song);
-  doc.setLineWidth(LAY.line); doc.setDrawColor(0); doc.setTextColor(0);
 
-  const chars = [...(song.title || '')].filter(c => c.trim());
-  if (chars.length) {
-    const totalW = chars.length * LAY.titleBox + (chars.length - 1) * LAY.titleGap;
-    let x = (A4.w - totalW) / 2;
-    const inset = 1.2, imgW = LAY.titleBox - inset * 2;
-    chars.forEach(ch => {
-      doc.rect(x, LAY.titleTop, LAY.titleBox, LAY.titleBoxH);
-      doc.addImage(charToPng(ch, imgW), 'PNG',
-        x + inset, LAY.titleTop + (LAY.titleBoxH - imgW) / 2, imgW, imgW, 'ch-' + ch, 'MEDIUM');
-      x += LAY.titleBox + LAY.titleGap;
-    });
+  // 미리보기와 똑같이 — 위 여백에서 시작해 fit 배율로 줄여 그린다
+  const K = L.fit, CX = A4.w / 2, M = LAY.marginTop;
+  const sx = x => CX + (x - CX) * K;      // 가로는 가운데 기준
+  const sy = y => M + y * K;              // 세로는 위 여백 기준
+  const sl = v => v * K;
+
+  doc.setLineWidth(Math.max(0.25, LAY.line * K));
+  doc.setDrawColor(0); doc.setTextColor(0);
+
+  // ── 제목 ──
+  if (L.title) {
+    const t = titlePng(L.title, L.titleFs, L.tFont.css);
+    let w = Math.min(t.w, LAY.titleMaxW), h = t.h * (w / t.w);
+    w = sl(w); h = sl(h);
+    doc.addImage(t.url, 'PNG', CX - w / 2, sy(L.titleTop) + (sl(L.titleH) - h) / 2, w, h,
+      't-' + L.tFont.key + '-' + L.title, 'MEDIUM');
   }
 
+  // ── 칼림바 건반 ──
   if (song.showKeys) {
     const n = song.keyCount, k = keyScale(song);
-    const w = barWidth(n) * k, barsW = LAY.barsW * k;
-    const left = (A4.w - barsW) / 2;
+    const w = sl(barWidth(n) * k), barsW = sl(LAY.barsW * k);
+    const left = CX - barsW / 2;
     const gap = n > 1 ? (barsW - n * w) / (n - 1) : 0;
-    doc.rect(left, LAY.barsTop - LAY.line / 2, barsW, LAY.line, 'F');
+    const top = sy(L.barsTop);
+    doc.rect(left, top - doc.getLineWidth() / 2, barsW, doc.getLineWidth(), 'F');
     barHeights(n).forEach((h0, i) => {
-      const h = h0 * k, x = left + i * (w + gap);
-      doc.line(x, LAY.barsTop, x, LAY.barsTop + h);
-      doc.line(x + w, LAY.barsTop, x + w, LAY.barsTop + h);
-      doc.line(x, LAY.barsTop + h, x + w, LAY.barsTop + h);
+      const h = sl(h0 * k), x = left + i * (w + gap);
+      doc.line(x, top, x, top + h);
+      doc.line(x + w, top, x + w, top + h);
+      doc.line(x, top + h, x + w, top + h);
     });
   }
 
-  const left = (A4.w - LAY.sheetW) / 2;
-  const cw = LAY.sheetW / song.cols;
-  const cf = cellFont(song.cols);
-  doc.setFont('helvetica', 'bold');
+  // ── 계이름표 ──
+  const sheetW = sl(LAY.sheetW);
+  const left = CX - sheetW / 2;
+  const cw = sheetW / song.cols;
+  const rowH = sl(LAY.rowH);
+  const cf = cellFont(song.cols) * K;
+  const nf = noteFontOf(song);
+  if (nf.pdf) doc.setFont(nf.pdf, 'bold');
   doc.setFontSize(cf * 2.83465);
-  let y = L.sheetTop;
+  let y = sy(L.sheetTop);
   L.groups.forEach((g, gi) => {
     g.forEach(r => {
       const units = mergeCells(r.cells);
       let ci = 0;
       units.forEach(u => {
         const x = left + ci * cw, w = cw * u.span;
-        doc.rect(x, y, w, LAY.rowH);
-        u.parts.forEach((p, k) => {
+        doc.rect(x, y, w, rowH);
+        u.parts.forEach((p, k2) => {
           if (p === '') return;
-          drawNote(doc, p, x + cw * (k + 0.5), y + LAY.rowH / 2, cf);
+          drawNote(doc, p, x + cw * (k2 + 0.5), y + rowH / 2, cf, nf);
         });
         ci += u.span;
       });
-      y += LAY.rowH;
+      y += rowH;
     });
-    if (gi < L.groups.length - 1) y += LAY.groupGap;
+    if (gi < L.groups.length - 1) y += sl(LAY.groupGap);
   });
 
-  if (song.showHands && song.handCount > 0) {
+  // ── 색칠용 그림 ──
+  if (L.handRows) {
     const ic = iconOf(song), hb = L.hb;
-    const hl = (A4.w - LAY.handsW) / 2;
+    const hw = sl(hb.w), hh = sl(hb.h), hgap = sl(hb.gap);
+    const hl = CX - sl(LAY.handsW) / 2;
+    const top = sy(L.handsTop);
     for (let i = 0; i < song.handCount; i++) {
       const col = i % hb.perRow, row = Math.floor(i / hb.perRow);
       doc.addImage(ic.png, 'PNG',
-        hl + col * (hb.w + hb.gap),
-        L.handsTop + row * (hb.h + LAY.handRowGap),
-        hb.w, hb.h, 'ic-' + ic.key, 'MEDIUM');
+        hl + col * (hw + hgap),
+        top + row * (hh + sl(LAY.handRowGap)),
+        hw, hh, 'ic-' + ic.key, 'MEDIUM');
     }
   }
   return doc;
