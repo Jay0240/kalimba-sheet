@@ -56,13 +56,60 @@ const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 
 /* ══════════ 저장소 ══════════ */
+/* 저장소 상태 — 저장이 막혀도 앱은 그대로 쓸 수 있어야 한다
+   ok : 정상 · full : 공간 부족 · blocked : 브라우저가 막음 */
+let storageState = 'ok';
+
+function checkStorage() {
+  try {
+    const k = '__kalimba_test__';
+    localStorage.setItem(k, '1');
+    localStorage.removeItem(k);
+    return 'ok';
+  } catch (e) {
+    const quota = e && (e.name === 'QuotaExceededError' ||
+                        e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22);
+    // 이미 저장된 게 있는데 넘쳤으면 '공간 부족', 아예 못 쓰면 '차단'
+    let had = false;
+    try { had = !!localStorage.getItem(STORE); } catch {}
+    return (quota && had) ? 'full' : 'blocked';
+  }
+}
+
 function loadSongs() {
   try { songs = JSON.parse(localStorage.getItem(STORE)) || []; }
   catch { songs = []; }
 }
+
 function persist() {
-  try { localStorage.setItem(STORE, JSON.stringify(songs)); showSaved(); }
-  catch { toast('저장 공간이 부족해요'); }
+  try {
+    localStorage.setItem(STORE, JSON.stringify(songs));
+    if (storageState !== 'ok') { storageState = 'ok'; renderStorageBanner(); }
+    showSaved();
+  } catch (e) {
+    const next = checkStorage();
+    if (next !== storageState) { storageState = next; renderStorageBanner(); }
+  }
+}
+
+/* 저장이 안 되는 상태를 화면에 계속 띄워 둔다 (토스트는 사라지니까) */
+function renderStorageBanner() {
+  let el = document.getElementById('storage-banner');
+  if (storageState === 'ok') { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'storage-banner';
+    el.className = 'storage-banner';
+    document.body.appendChild(el);
+  }
+  const why = storageState === 'full'
+    ? '저장 공간이 꽉 찼어요. 안 쓰는 악보를 지우면 다시 저장돼요.'
+    : '이 브라우저가 저장을 막고 있어요. 사파리 설정에서 <b>쿠키·사이트 데이터 차단</b>을 끄거나, 프라이빗 브라우징을 끄면 저장돼요.';
+  el.innerHTML = `<b>저장이 안 되고 있어요</b>
+    <span>${why} 지금도 악보를 만들고 <b>PDF로 저장</b>할 수는 있지만,
+    앱을 껐다 켜면 작업한 내용이 사라져요.</span>
+    <button type="button" id="storage-close">닫기</button>`;
+  el.querySelector('#storage-close').onclick = () => el.remove();
 }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
@@ -821,6 +868,8 @@ function toast(msg) {
 
 /* ══════════ 시작 ══════════ */
 loadSongs();
+storageState = checkStorage();
+renderStorageBanner();
 showList();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});

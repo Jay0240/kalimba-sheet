@@ -343,6 +343,29 @@ button, input { font-family: inherit; }
 .step-nav .btn.primary { flex: 2; }
 
 /* ── 토스트 ───────────────────────── */
+.storage-banner {
+  position: fixed;
+  left: 50%; transform: translateX(-50%);
+  top: calc(env(safe-area-inset-top) + 72px);   /* 아래쪽 조작 버튼을 가리지 않게 */
+  width: min(620px, 92vw);
+  box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  background: #3a2a16;
+  border: 1px solid var(--amber);
+  border-radius: 13px;
+  padding: 13px 16px 14px;
+  z-index: 120;
+  font-size: 13px; line-height: 1.6; color: var(--text);
+}
+.storage-banner > b { display: block; font-size: 14px; margin-bottom: 4px; color: var(--amber); }
+.storage-banner span { display: block; color: var(--text-dim); }
+.storage-banner span b { color: var(--text); }
+.storage-banner button {
+  margin-top: 10px;
+  background: transparent; border: 1px solid var(--line);
+  color: var(--text-dim); border-radius: 8px;
+  padding: 7px 14px; font-size: 13px; cursor: pointer;
+}
+
 .toast {
   position: fixed; left: 50%; bottom: 40px;
   transform: translateX(-50%) translateY(20px);
