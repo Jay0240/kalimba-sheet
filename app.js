@@ -12,7 +12,7 @@ const LAY = {
   titleTop: 17.6, titleBox: 21.3, titleBoxH: 21, titleGap: 8.6,
   barsTop: 52.3, barsW: 154.2, barsMax: 57.5, barsMin: 14.7,
   sheetW: 174.4, rowH: 21.6, groupGap: 7, cellFont: 9,
-  sheetTopWithBars: 123.1, sheetTopNoBars: 40,
+  barsGapBelow: 13.3, sheetTopNoBars: 40,
   sheetGapBelow: 12,
   handsW: 150, handW: 14, handH: 22, handRowGap: 6, handsPerRow: 8,
   line: 0.5
@@ -44,7 +44,7 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 function newSong() {
   return {
     id: uid(), title: '', updatedAt: Date.now(),
-    showKeys: true, keyCount: 17, cols: 8,
+    showKeys: true, keyCount: 17, keyScale: 1, cols: 8,
     rows: Array.from({ length: 4 }, () => ({ cells: Array(8).fill(''), gapAfter: false })),
     showHands: true, handCount: 16
   };
@@ -100,7 +100,9 @@ function groupRows(rows) {
 }
 function layout(song) {
   const groups = groupRows(song.rows);
-  const sheetTop = song.showKeys ? LAY.sheetTopWithBars : LAY.sheetTopNoBars;
+  const sheetTop = song.showKeys
+    ? LAY.barsTop + LAY.barsMax * keyScale(song) + LAY.barsGapBelow
+    : LAY.sheetTopNoBars;
   let sheetH = 0;
   groups.forEach((g, i) => {
     sheetH += g.length * LAY.rowH;
@@ -123,6 +125,10 @@ function barHeights(n) {
   });
 }
 function barWidth(n) { return n >= 21 ? 4.5 : 5.5; }
+function keyScale(song) {
+  const v = song.keyScale;
+  return (typeof v === 'number' && v > 0) ? v : 1;   // 예전에 만든 곡 대비
+}
 
 /* ══════════ 화면 전환 ══════════ */
 function showList() {
@@ -142,6 +148,7 @@ function showEdit(song, startStep) {
   $('#row-count').textContent = song.rows.length;
   $('#col-count').textContent = song.cols;
   $$('#pick-key button').forEach(b => b.classList.toggle('on', +b.dataset.n === song.keyCount));
+  syncKeyScale();
   goStep(startStep || 1);
   renderKeypad();
   renderRows();
@@ -237,8 +244,21 @@ $('#pick-key').addEventListener('click', e => {
   renderKeypad(); renderPreview(); persistSoon();
 });
 $('#opt-keys').addEventListener('change', e => {
-  cur.showKeys = e.target.checked; renderPreview(); persistSoon();
+  cur.showKeys = e.target.checked;
+  syncKeyScale(); renderPreview(); persistSoon();
 });
+
+const KEY_SCALE_MIN = 0.5, KEY_SCALE_MAX = 1.4;
+function syncKeyScale() {
+  $('#key-scale-val').textContent = Math.round(keyScale(cur) * 100) + '%';
+  $('#key-scale-field').style.opacity = cur.showKeys ? '1' : '.35';
+}
+function setKeyScale(v) {
+  cur.keyScale = +Math.min(KEY_SCALE_MAX, Math.max(KEY_SCALE_MIN, v)).toFixed(2);
+  syncKeyScale(); renderPreview(); persistSoon();
+}
+$('#key-scale-minus').addEventListener('click', () => setKeyScale(keyScale(cur) - 0.1));
+$('#key-scale-plus').addEventListener('click', () => setKeyScale(keyScale(cur) + 0.1));
 
 /* ══════════ ③ 표 크기 ══════════ */
 function setRows(n) {
@@ -380,9 +400,12 @@ function renderPreview() {
 
   const bars = $('#p-bars');
   if (cur.showKeys) {
-    const n = cur.keyCount, w = barWidth(n);
+    const n = cur.keyCount, k = keyScale(cur), w = barWidth(n) * k;
     bars.style.display = 'flex';
-    bars.innerHTML = barHeights(n).map(h => `<i style="width:${w}mm;height:${h}mm"></i>`).join('');
+    bars.style.width = (LAY.barsW * k) + 'mm';
+    bars.style.height = (LAY.barsMax * k) + 'mm';
+    bars.innerHTML = barHeights(n)
+      .map(h => `<i style="width:${w}mm;height:${(h * k).toFixed(2)}mm"></i>`).join('');
   } else {
     bars.style.display = 'none';
     bars.innerHTML = '';
@@ -479,12 +502,13 @@ function buildPdf(song) {
   }
 
   if (song.showKeys) {
-    const n = song.keyCount, w = barWidth(n);
-    const left = (A4.w - LAY.barsW) / 2;
-    const gap = n > 1 ? (LAY.barsW - n * w) / (n - 1) : 0;
-    doc.rect(left, LAY.barsTop - LAY.line / 2, LAY.barsW, LAY.line, 'F');
-    barHeights(n).forEach((h, i) => {
-      const x = left + i * (w + gap);
+    const n = song.keyCount, k = keyScale(song);
+    const w = barWidth(n) * k, barsW = LAY.barsW * k;
+    const left = (A4.w - barsW) / 2;
+    const gap = n > 1 ? (barsW - n * w) / (n - 1) : 0;
+    doc.rect(left, LAY.barsTop - LAY.line / 2, barsW, LAY.line, 'F');
+    barHeights(n).forEach((h0, i) => {
+      const h = h0 * k, x = left + i * (w + gap);
       doc.line(x, LAY.barsTop, x, LAY.barsTop + h);
       doc.line(x + w, LAY.barsTop, x + w, LAY.barsTop + h);
       doc.line(x, LAY.barsTop + h, x + w, LAY.barsTop + h);
