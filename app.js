@@ -306,6 +306,7 @@ function showList() {
 function showEdit(song, startStep) {
   cur = song;
   sel = { row: 0, cell: 0 };
+  undoReset();                       // 다른 곡의 되돌리기 기록이 섞이지 않게
   $('#view-list').classList.add('hidden');
   $('#view-edit').classList.remove('hidden');
   $('#song-title').value = song.title;
@@ -500,6 +501,36 @@ function updatePos() {
   const el = document.querySelector('.cell.sel');
   if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
+/* ══════════ 되돌리기 (계이름 입력) ══════════
+   계이름 칸을 바꾸기 '직전' 상태를 쌓아두고, 버튼을 누르면 한 걸음씩 되돌린다.
+   줄 비우기처럼 한 번에 여러 칸이 날아가는 조작도 같이 되돌아온다. */
+const UNDO_MAX = 50;
+let undoStack = [];
+
+function undoReset() { undoStack = []; syncUndo(); }
+function undoPush() {
+  if (!cur) return;
+  undoStack.push({ rows: JSON.parse(JSON.stringify(cur.rows)), sel: { ...sel } });
+  if (undoStack.length > UNDO_MAX) undoStack.shift();
+  syncUndo();
+}
+function syncUndo() {
+  const b = $('#btn-undo');
+  if (b) b.disabled = undoStack.length === 0;
+}
+function undoApply() {
+  if (!cur || !undoStack.length) return;
+  const prev = undoStack.pop();
+  cur.rows = prev.rows;
+  sel = { ...prev.sel };
+  if (sel.row >= cur.rows.length) sel.row = Math.max(0, cur.rows.length - 1);
+  if (sel.cell >= cur.cols) sel.cell = Math.max(0, cur.cols - 1);
+  syncUndo();
+  renderRows(); updatePos(); renderPreview(); persistSoon();
+  toast('되돌렸어요');
+}
+$('#btn-undo').addEventListener('click', undoApply);
+
 $('#rows').addEventListener('click', e => {
   const cell = e.target.closest('.cell');
   if (cell) {
@@ -510,6 +541,7 @@ $('#rows').addEventListener('click', e => {
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
   const ri = +btn.closest('.row-item').dataset.ri;
+  undoPush();
   if (btn.dataset.act === 'gap') cur.rows[ri].gapAfter = !cur.rows[ri].gapAfter;
   if (btn.dataset.act === 'clear') cur.rows[ri].cells = Array(cur.cols).fill('');
   renderRows(); renderPreview(); persistSoon();
@@ -539,6 +571,7 @@ $('#keypad').addEventListener('click', e => {
   const k = b.dataset.k;
   const row = cur.rows[sel.row];
   if (!row) return;
+  undoPush();
   if (k === 'BS') {
     if (row.cells[sel.cell] !== '') row.cells[sel.cell] = '';
     else if (sel.cell > 0) { sel.cell--; row.cells[sel.cell] = ''; }

@@ -3,7 +3,7 @@
    - 라이브러리·이미지는 캐시 우선 → 빠르고 오프라인에서도 뜬다
    - 인터넷이 없으면 어느 쪽이든 캐시로 떨어진다                        */
 
-const CACHE = 'kalimba-v4';
+const CACHE = 'kalimba-v5';
 
 const PRECACHE = [
   './', './index.html', './style.css', './app.js',

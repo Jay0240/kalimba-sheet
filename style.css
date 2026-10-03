@@ -337,10 +337,16 @@ button, input { font-family: inherit; }
   padding: 12px 0 10px; font-size: 19px; font-weight: 700; cursor: pointer;
 }
 .oct-keys button:active:not(:disabled) { background: var(--amber); color: var(--amber-ink); }
+/* 키패드 버튼은 위쪽 여백(12px)이 이미 점 자리 역할을 한다.
+   여기서까지 자리를 확보하면 '높음' 줄 버튼만 키가 커지므로 점을 띄운 채로 둔다 */
+.oct-keys .note[data-up="1"], .oct-keys .note[data-up="2"] { padding-top: 0; }
+.oct-keys .note[data-up="1"]::before, .oct-keys .note[data-up="2"]::before {
+  top: auto; bottom: 100%; margin-bottom: .14em;
+}
 .oct-keys button:disabled { opacity: .2; cursor: default; }
 .key-blank { display: block; }
 
-.keys-fn { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 6px; margin-top: 8px; }
+.keys-fn { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1.1fr; gap: 6px; margin-top: 8px; }
 .keys-fn button {
   background: var(--panel-2); border: 1px solid var(--line);
   color: var(--text); border-radius: 10px;
@@ -348,6 +354,8 @@ button, input { font-family: inherit; }
 }
 .keys-fn button:active { background: var(--amber); color: var(--amber-ink); }
 .keys-fn button.muted { font-size: 14px; color: var(--text-dim); }
+.keys-fn button:disabled { opacity: .3; cursor: default; }
+.keys-fn button:disabled:active { background: var(--panel-2); color: var(--text-dim); }
 .keys-fn small { display: block; font-size: 10px; font-weight: 600; opacity: .7; }
 
 /* ── 단계 이동 ────────────────────── */
@@ -446,11 +454,15 @@ button, input { font-family: inherit; }
 }
 .p-hands img { display: block; }
 
-/* 계이름 — 숫자 위 옥타브 점 */
+/* 계이름 — 숫자 위 옥타브 점
+   점을 절대위치로만 띄우면 자리를 차지하지 않아, 숫자만 칸 가운데에 놓이고
+   점은 위로 삐져나가 묶음 전체가 위로 쏠려 보인다.
+   위쪽에 점 자리(padding-top)를 확보해 '점 + 숫자'가 함께 가운데에 오게 한다. */
 .note { position: relative; display: inline-block; line-height: 1; }
+.note[data-up="1"], .note[data-up="2"] { padding-top: .56em; }  /* 점 .42em + 사이 .14em */
 .note[data-up="1"]::before, .note[data-up="2"]::before {
   position: absolute; left: 50%; transform: translateX(-50%);
-  bottom: 100%; margin-bottom: .14em;
+  top: 0;
   font-size: .42em; letter-spacing: .12em; line-height: 1; white-space: nowrap;
 }
 .note[data-up="1"]::before { content: "●"; }
